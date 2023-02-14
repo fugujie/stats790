@@ -1,0 +1,84 @@
+---
+title: "790 assignment 2"
+output: html_document
+date: "2023-02-13"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## The following is code for Question 1
+```{r}
+library(mass)
+library(ggplot2)
+library(microbenchmark)
+observation <- seq(10,1090,by=50)
+feature <- seq(1,50,by=5)
+tm_naive_ob <- c()
+tm_qr_ob <- c()
+tm_svd_ob <- c()
+tm_naive_fe <- c()
+tm_qr_fe <- c()
+tm_svd_fe <- c()
+for (i in observation){
+  for (j in feature){
+    x <- matrix(rnorm(i*j,mean = 0, sd=5),i,j)
+    y <- matrix(rnorm(i,mean = 0,sd=5),i,1)
+    x <- cbind(replicate(i,1),x)
+    ## First we use naive method
+    tm_naive <- microbenchmark(ginv(t(x)%*%x)%*%t(x)%*%y,times = 1)
+    tm_naive <- summary(tm_naive)
+    tm_naive_fe <- append(tm_naive_fe,tm_naive$mean)
+    ## Next we use QR decomposition
+    QR <- qr(t(x)%*%x)
+    tm_qr <- microbenchmark(ginv(qr.R(QR))%*%t(qr.Q(QR))%*%t(x)%*%y,times = 1)
+    tm_qr <- summary(tm_qr)
+    tm_qr_fe <- append(tm_qr_fe,tm_qr$mean)
+    ## Finally we use SVD
+    S <- svd(x)
+    D <- diag(S$d)
+    tm_svd <- microbenchmark(ginv(S$u%*%D%*% t(S$v))%*%y,times = 1)
+    tm_svd <- summary(tm_svd)
+    tm_svd_fe <- append(tm_svd_fe,tm_svd$mean)
+    
+  }
+      tm_naive_ob <- append(tm_naive_ob,tm_naive$mean)
+      tm_qr_ob <- append(tm_qr_ob,tm_qr$mean)
+      tm_svd_ob <- append(tm_svd_ob,tm_svd$mean)
+}
+
+```
+
+
+```{r}
+tm_naive_fe <- colMeans(matrix(tm_naive_fe,10))
+tm_qr_fe <- colMeans(matrix(tm_qr_fe,10))
+tm_svd_fe <- colMeans(matrix(tm_svd_fe,10))
+```
+
+```{r}
+ggplot() + 
+  geom_smooth(aes(x = log(observation), y = log(tm_naive_ob),color = "Naive"),show.legend=TRUE)+
+  geom_smooth(aes(x = log(observation), y = log(tm_qr_ob),color = "QR"),show.legend=TRUE)+
+  geom_smooth(aes(x = log(observation), y = log(tm_svd_ob),color = "SVD"),show.legend=TRUE) + ylab("log of time with respect to observation")
+
+ggplot() + 
+  geom_point(aes(x = log(observation), y = log(tm_naive_ob),color = "Naive"),show.legend=TRUE)+
+  geom_point(aes(x = log(observation), y = log(tm_qr_ob),color = "QR"),show.legend=TRUE)+
+  geom_point(aes(x = log(observation), y = log(tm_svd_ob),color = "SVD"),show.legend=TRUE) +  ylab("log of time with respect to observation")
+```
+
+```{r}
+ggplot() + 
+  geom_smooth(aes(x = log(observation), y = log(tm_naive_fe),color = "Naive"),show.legend=TRUE)+
+  geom_smooth(aes(x = log(observation), y = log(tm_qr_fe),color = "QR"),show.legend=TRUE)+
+  geom_smooth(aes(x = log(observation), y = log(tm_svd_fe),color = "SVD"),show.legend=TRUE)+ ylab("log of time with respect to feature")
+
+ggplot() + 
+  geom_point(aes(x = log(observation), y = log(tm_naive_fe),color = "Naive"),show.legend=TRUE)+
+  geom_point(aes(x = log(observation), y = log(tm_qr_fe),color = "QR"),show.legend=TRUE)+
+  geom_point(aes(x = log(observation), y = log(tm_svd_fe),color = "SVD"),show.legend=TRUE)+ ylab("log of time with respect to feature")
+```
+
