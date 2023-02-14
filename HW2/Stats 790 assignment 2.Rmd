@@ -1,0 +1,175 @@
+---
+title: "790 assignment 2"
+output: html_document
+date: "2023-02-13"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## The following is code for Question 1
+```{r}
+library(mass)
+library(ggplot2)
+library(microbenchmark)
+observation <- seq(10,1090,by=50)
+feature <- seq(1,50,by=5)
+tm_naive_ob <- c()
+tm_qr_ob <- c()
+tm_svd_ob <- c()
+tm_naive_fe <- c()
+tm_qr_fe <- c()
+tm_svd_fe <- c()
+for (i in observation){
+  for (j in feature){
+    x <- matrix(rnorm(i*j,mean = 0, sd=5),i,j)
+    y <- matrix(rnorm(i,mean = 0,sd=5),i,1)
+    x <- cbind(replicate(i,1),x)
+    ## First we use naive method
+    tm_naive <- microbenchmark(ginv(t(x)%*%x)%*%t(x)%*%y,times = 1)
+    tm_naive <- summary(tm_naive)
+    tm_naive_fe <- append(tm_naive_fe,tm_naive$mean)
+    ## Next we use QR decomposition
+    QR <- qr(t(x)%*%x)
+    tm_qr <- microbenchmark(ginv(qr.R(QR))%*%t(qr.Q(QR))%*%t(x)%*%y,times = 1)
+    tm_qr <- summary(tm_qr)
+    tm_qr_fe <- append(tm_qr_fe,tm_qr$mean)
+    ## Finally we use SVD
+    S <- svd(x)
+    D <- diag(S$d)
+    tm_svd <- microbenchmark(ginv(S$u%*%D%*% t(S$v))%*%y,times = 1)
+    tm_svd <- summary(tm_svd)
+    tm_svd_fe <- append(tm_svd_fe,tm_svd$mean)
+    
+  }
+      tm_naive_ob <- append(tm_naive_ob,tm_naive$mean)
+      tm_qr_ob <- append(tm_qr_ob,tm_qr$mean)
+      tm_svd_ob <- append(tm_svd_ob,tm_svd$mean)
+}
+
+```
+
+
+```{r}
+tm_naive_fe <- colMeans(matrix(tm_naive_fe,10))
+tm_qr_fe <- colMeans(matrix(tm_qr_fe,10))
+tm_svd_fe <- colMeans(matrix(tm_svd_fe,10))
+```
+
+```{r}
+ggplot() + 
+  geom_smooth(aes(x = log(observation), y = log(tm_naive_ob),color = "Naive"),show.legend=TRUE)+
+  geom_smooth(aes(x = log(observation), y = log(tm_qr_ob),color = "QR"),show.legend=TRUE)+
+  geom_smooth(aes(x = log(observation), y = log(tm_svd_ob),color = "SVD"),show.legend=TRUE) + ylab("log of time with respect to observation")
+
+ggplot() + 
+  geom_point(aes(x = log(observation), y = log(tm_naive_ob),color = "Naive"),show.legend=TRUE)+
+  geom_point(aes(x = log(observation), y = log(tm_qr_ob),color = "QR"),show.legend=TRUE)+
+  geom_point(aes(x = log(observation), y = log(tm_svd_ob),color = "SVD"),show.legend=TRUE) +  ylab("log of time with respect to observation")
+```
+
+```{r}
+ggplot() + 
+  geom_smooth(aes(x = log(observation), y = log(tm_naive_fe),color = "Naive"),show.legend=TRUE)+
+  geom_smooth(aes(x = log(observation), y = log(tm_qr_fe),color = "QR"),show.legend=TRUE)+
+  geom_smooth(aes(x = log(observation), y = log(tm_svd_fe),color = "SVD"),show.legend=TRUE)+ ylab("log of time with respect to feature")
+
+ggplot() + 
+  geom_point(aes(x = log(observation), y = log(tm_naive_fe),color = "Naive"),show.legend=TRUE)+
+  geom_point(aes(x = log(observation), y = log(tm_qr_fe),color = "QR"),show.legend=TRUE)+
+  geom_point(aes(x = log(observation), y = log(tm_svd_fe),color = "SVD"),show.legend=TRUE)+ ylab("log of time with respect to feature")
+```
+
+## The following is code for Q2
+```{r}
+library(dplyr)
+library(magrittr)
+library(readr)
+library(ggplot2)
+library(glmnet)
+```
+
+
+```{r}
+## Get data from website of ESL
+link <- "https://hastie.su.domains/ElemStatLearn/datasets/prostate.data"
+data <- read.table(link,header = TRUE)
+head(data)
+dim(data)
+```
+
+```{r}
+## Train set and test set
+train_full <- data[data$train == "TRUE",]
+test_full <- data[data$train == "FALSE",]
+train_data <- as.matrix(train_full[,1:8])
+test_data <- as.matrix(test_full[,1:8])
+train_value <- as.matrix(train_full[,9])
+test_value <- as.matrix(test_full[,9])
+```
+
+```{r}
+## Use CV to choose best lambda
+grid <- 10^seq(10, -2, length = 100)
+ridge_mod <- glmnet(train_data, train_value, alpha = 0, lambda = grid)
+plot(ridge_mod)
+set.seed(1024)
+cv_out <- cv.glmnet(train_data, train_value, alpha = 0) 
+plot(cv.out)
+bestlam <- cv_out$lambda.1se
+bestlam
+```
+
+```{r}
+## Test MSE
+ridge_pred <- predict(ridge_mod, s = bestlam, newx = test_data)
+sqrt(mean((ridge_pred - test_value)^2))
+```
+
+```{r}
+## Fit naive ridge regression using full data
+out <- glmnet(data[,1:8], data[,9], alpha = 0)
+predict(out, type = "coefficients", s = bestlam)[1:9, ]
+```
+
+```{r}
+tm_naive <- microbenchmark(predict(out, type = "coefficients", s = bestlam)[1:8, ],times = 50)
+summary_naive <- summary(tm_naive)
+summary_naive
+```
+
+```{r}
+## Ridge regression with data augmentation
+## Define a function first
+ridge_aug <- function(x,y,lambda){
+  n <- nrow(x)
+  p <- ncol(x)
+  x <- cbind(x <- cbind(replicate(n,1),x))
+  x_new <- rbind(x,sqrt(lambda)*diag(p+1))
+  y_new <- c(y,replicate(p+1,0))
+  beta <- ginv(t(x_new)%*%x_new)%*%t(x_new)%*%y_new
+}
+```
+
+```{r}
+## Find the coefficient and MSE
+beta_train <- ridge_aug(train_data,train_value,bestlam)
+beta_train
+beta_train - predict(out, type = "coefficients", s = bestlam)[1:9, ]
+sqrt(mean((t(as.matrix(beta_train))%*%t(cbind(1,test_data)) - t(test_value))^2))
+```
+
+```{r}
+## Find the processing time 
+tm_aug <- microbenchmark(ridge_aug(as.matrix(data[,1:8]),as.matrix(data[,9]),bestlam),times = 50)
+summary_aug <- summary(tm_aug)
+summary_aug
+```
+
+```{r}
+## Answer for question : we can see that the the naive ridge and data augmentation ridge regression differs in this example. The processing time is the largest difference. In this example, data augmentation ridge regression performs better than naive way. We can see that mean squared error decreases.
+
+
+``
