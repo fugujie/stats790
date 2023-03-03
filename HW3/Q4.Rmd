@@ -1,0 +1,21 @@
+---
+title: "Q4"
+output: html_document
+date: "2023-03-03"
+---
+
+```{r}
+simulate <- function(n, sd) {
+  x <- seq(0, 1, length.out = n)
+  y <- seq(0, 1, length.out = n)
+  xy <- expand.grid(x, y)
+  z <- cos(pi * xy[,1]) * sin(pi * xy[,2])
+  noise <- rnorm(n^2, mean = 0, sd = sd)
+  z_noisy <- z + noise
+  data.frame(x = xy[,1], y = xy[,2], z = z, z_noisy = z_noisy)
+}
+data <- simulate(100, 0.1)
+data <- data[order(data$x, data$y), ]
+wireframe(data$z_noisy ~ data$x * data$y, col = "red", 
+          xlab = "x", ylab = "y", zlab = "z")
+```
