@@ -1,0 +1,65 @@
+---
+title: "Q2"
+output: html_document
+date: "2023-03-03"
+---
+
+```{r}
+library(ggplot2)
+## read data first 
+data <- read.csv("http://www-stat.stanford.edu/~tibs/ElemStatLearn/datasets/SAheart.data", row.names = 1)
+head(data)
+truncpolyspline <- function(x,df){
+  knots <- quantile(x,seq(0, 1, length = df - 1))
+  trunc_fun <- function(k) (x >= k)*(x - k)^3
+  S <- sapply(knots, trunc_fun)
+  S <- cbind(x,x^2,S)
+  return(S)
+}
+
+## fit the model
+fit_ns <- glm(data$chd ~ ns(data$tobacco, knots = 5), data = data, family = binomial("logit"))
+fit_bs <- glm(data$chd ~ bs(data$tobacco, knots = 5), data = data, family = binomial("logit"))
+fit_tp <- glm(data$chd ~ truncpolyspline(data$tobacco,2),data = data, family = binomial("logit"))
+
+## do prediction 
+S_ns <- cbind(1,ns(data$tobacco,knots = 5))
+pred_ns <- S_ns %*% fit_ns$coefficients
+cov_ns <- summary(fit_ns)$cov.scaled
+se_ns <- sd(S_ns %*% cov_ns %*% t(S_ns))
+
+S_bs <- cbind(1,bs(data$tobacco,knots = 5))
+pred_bs <- S_bs %*% fit_bs$coefficients
+cov_bs <- summary(fit_bs)$cov.scaled
+se_bs <- sd(S_bs %*% cov_bs %*% t(S_bs))
+
+S_tp <- cbind(1,truncpolyspline(data$tobacco,2))
+pred_tp <- S_tp %*% as.matrix(fit_tp$coefficients)
+cov_tp <- summary(fit_tp)$cov.scaled
+se_tp <- sd(S_tp %*% cov_tp %*% t(S_tp))
+
+
+## plot the result
+ggplot()+
+  geom_line(aes(x = data$tobacco, y = pred_ns),col = "red")+
+  geom_ribbon(aes(x = data$tobacco, ymin = pred_ns - se_ns, ymax = pred_ns + se_ns), alpha = 0.5)+
+  xlab("Tabacco")+
+  ylab("Log odds")+
+  ggtitle("Natural spline")
+
+ggplot()+
+  geom_line(aes(x = data$tobacco, y = pred_bs),col = "blue")+
+  geom_ribbon(aes(x = data$tobacco, ymin = pred_bs - se_bs, ymax = pred_bs + se_bs), alpha = 0.5)+
+  xlab("Tabacco")+
+  ylab("Log odds")+
+  ggtitle("B - spline")
+
+ggplot()+
+  geom_line(aes(x = data$tobacco, y = pred_tp),col = "green")+
+  geom_ribbon(aes(x = data$tobacco, ymin = pred_tp - se_tp, ymax = pred_tp + se_tp), alpha = 0.5)+
+  xlab("Tabacco")+
+  ylab("Log odds")+
+  ggtitle("Truncated polynomial")
+
+
+```
