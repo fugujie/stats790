@@ -38,12 +38,12 @@ var_natural <- diag(H%*%sigma_natural%*%t(H))
 plot(x, var_linear, ylim = c(0,1), col = 'orange', pch = 16, ylab = 'Pointwise Variances', xlab = 'X')
 points(x, var_global, col='red', pch = 16)
 points(x, var_cubic, col = 'green', pch = 16)
-points(x, var_natural, col = 'black', pch = 16)
+points(x, var_natural, col = 'blue', pch = 16)
 lines(x[order(x)], var_linear[order(x)], col='orange')
 lines(x[order(x)], var_global[order(x)], col = 'red')
 lines(x[order(x)], var_cubic[order(x)], col = 'green')
-lines(x[order(x)], var_natural[order(x)], col = 'black')
-legend(x=0.3, y=0.7, legend = c('Global Linear', 'Global Cubic Polynomial', 'Global Spline - 2 knots', 'Natural Cubic Spline - 6 knots'),col = c('orange', 'red', 'green', 'black'), lty = 1)
+lines(x[order(x)], var_natural[order(x)], col = 'blue')
+legend(x=0.3, y=0.7, legend = c('Global Linear', 'Global Cubic Polynomial', 'Global Spline - 2 knots', 'Natural Cubic Spline - 6 knots'),col = c('orange', 'red', 'green', 'blue'), lty = 1)
 
 ```
 
