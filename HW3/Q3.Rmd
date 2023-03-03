@@ -1,0 +1,40 @@
+---
+title: "Q3"
+output: html_document
+date: "2023-03-03"
+---
+
+```{r}
+truncpolyspline <- function(x, df, natural) {
+  if(natural == FALSE){
+    knots <- quantile(x,seq(0,1,length = df-1))
+    trunc_fun <- function(k) (x >= k)*(x-k)^3
+    S <- sapply(knots[1:(df-2)],trunc_fun)
+    S <- cbind(x,x^2,S)
+    return(S)
+  }
+  if(natural == TRUE){ ## recursive formula
+    knots <- quantile(x,seq(0,1,length = df-1))
+    trunc_fun <- function(k) (x >= k)*(x-k)^3
+    S_0 <- sapply(knots,trunc_fun)
+    c = ncol(S_0)
+    d_k <- matrix(nrow = nrow(S_0), ncol = c - 2)
+    for (i in 1:(c-2)) {
+      d_k[,i] <- (S_0[,i]-S_0[,c])/
+        (knots[c]-knots[i])
+    }    ## recursive formula 
+    d_K_1 <- (S_0[,c-1]-S_0[,c])/
+        (knots[c]-knots[c-1]) ## the one before the last one 
+      S <- cbind(1,x,d_k-d_K_1)
+    }
+}
+
+x <- seq(0, 1, length = 101)
+fit_1 <- truncpolyspline(x,7,FALSE)
+fit_2 <- truncpolyspline(x,7,TRUE)
+
+matplot(scale(fit_1),type="l",main = "Truncated polynomial with regular base")
+matplot(scale(fit_2),type="l",main = "Truncated polynomial with natural base")
+
+
+```
