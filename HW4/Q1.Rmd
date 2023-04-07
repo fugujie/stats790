@@ -1,0 +1,125 @@
+---
+title: "Q1"
+output: html_document
+date: "2023-04-05"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(tree)
+library(caret)
+library(ggplot2)
+library(corrplot)
+library(Hmisc)
+library(randomForest)
+```
+
+```{r}
+Vgsales <- read.csv("/Users/gujiefu/Desktop/Document/Stats\ MsC/Stats\ 790/Assignment\ 4/Video_Games_Sales_as_at_22_Dec_2016.csv",sep=",",na.strings=c(""," ","NA","N/A"),stringsAsFactors=TRUE)
+head(Vgsales)
+```
+
+```{r}
+na_count <- sapply(Vgsales, function(x) sum(length(which(is.na(x)))))
+na_count <- data.frame(na_count)
+na_count
+Vgsales <- na.omit(Vgsales)
+Vgsales <- data.frame(Vgsales)
+head(Vgsales)
+```
+
+```{r}
+Vgsales_df <- cbind(Vgsales[,-c(1,6:10)],Vgsales$Global_Sales)
+Vgsales_df$Year_of_Release <- 2016 - Vgsales_df$Year_of_Release
+names(Vgsales_df)[2] <- "Game_Age"
+names(Vgsales_df)[11] <- "Global_Sales"
+head(Vgsales_df)
+```
+
+```{r}
+Platform <- ggplot(Vgsales_df) + 
+  geom_bar(mapping = aes(x=Platform,fill =Platform)) + 
+  theme(text = element_text(size=10))  
+Platform
+```
+
+```{r}
+sales_platform <- ggplot(Vgsales_df) +geom_bar(mapping = aes(Platform,Global_Sales,fill =Platform),stat = "identity") + 
+theme(text = element_text(size=10),legend.position="right",axis.text.x=element_text(angle = 90,vjust = 0.5,hjust = 1,size=15))+labs(x="Platform",y="Global Sales",title="Sales by Platform")
+sales_platform
+```
+
+```{r}
+Vgsales_df$Platform <- as.numeric(Vgsales_df$Platform)
+Vgsales_df$Publisher <- as.numeric(Vgsales_df$Publisher)
+Vgsales_df$User_Score <- as.numeric(Vgsales_df$User_Score)
+Vgsales_df$Developer <- as.numeric(Vgsales_df$Developer)
+Vgsales_df$Rating <- as.numeric(Vgsales_df$Rating)
+Vgsales_df$Genre <- as.numeric(Vgsales_df$Genre)
+corr <- cor(Vgsales_df)
+round(corr,2)
+corr2 <- rcorr(as.matrix(Vgsales_df))
+corrplot(corr, type = "upper", order = "hclust", 
+         tl.col = "black", tl.srt = 45)
+```
+
+```{r}
+set.seed(10)
+train_size <- round(0.75*nrow(Vgsales_df))
+train_index <- sample(1:nrow(Vgsales_df), train_size, replace = F)
+train_set <- Vgsales_df[train_index,]
+test_set <- Vgsales_df[-train_index,]
+```
+
+```{r}
+set.seed(10)
+tree = tree(Global_Sales ~Critic_Score + Critic_Count + User_Count,Vgsales_df,subset=train_index)
+summary(tree)
+```
+
+```{r}
+plot(tree)
+text(tree,pretty=0, cex = 0.8)
+```
+
+
+
+```{r}
+cv = cv.tree(tree)
+plot(cv$size,cv$dev,type='b')
+tree_pruned = prune.tree(tree,best=6)
+summary(tree_pruned)
+plot(tree_pruned)
+text(tree_pruned,pretty=0,cex = 0.8)
+```
+
+```{r}
+tree_pruned_test = predict(tree_pruned, newdata = Vgsales_df[-train_index,])
+tree_test = predict(tree, newdata = Vgsales_df[-train_index,])
+Vgsales_test = Vgsales_df[-train_index,"Global_Sales"]
+plot(tree_pruned_test,Vgsales_test)
+abline(0,1)
+plot(tree_test,Vgsales_test)
+abline(0,1)
+```
+
+```{r}
+mse_tree = mean((tree_test-Vgsales_test)^2)
+mse_tree_pruned = mean((tree_pruned_test-Vgsales_test)^2)
+mse_tree
+mse_tree_pruned
+```
+
+```{r}
+set.seed(400067957)
+rf <- randomForest(Global_Sales ~., data = Vgsales_df, subset = train_index, mtry = 3, impoortant = TRUE)
+rf_test <- predict(rf, newdata = Vgsales_df[-train_index,])
+plot(rf)
+varImpPlot(rf)
+mse_rf = mean((rf_test-Vgsales_test)^2)
+mse_rf
+```
