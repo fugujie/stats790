@@ -1,0 +1,160 @@
+---
+title: "L1 penalty"
+output: html_document
+date: "2023-04-30"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(glmnet)
+library(Matrix)
+library(quantreg)
+```
+
+
+```{r}
+objective_func <- function(beta, X, y, tau, lambda) {
+  n <- nrow(X)
+  eps <- y - X %*% beta
+  return(tau * sum(pmax(eps, 0)) + (1 - tau) * sum(pmax(-eps, 0)) + lambda * sum(abs(beta)))
+}
+
+gradient_func <- function(beta, X, y, tau, lambda) {
+  n <- nrow(X)
+  eps <- y - X %*% beta
+  q <- ifelse(eps >= 0, tau, 1 - tau)
+  return(-t(X) %*% Matrix::Diagonal(q, n) %*% sign(eps) / n + lambda * sign(beta))
+}
+
+quantile_reg <- function(X, y, tau, lambda, max_iter = 1000, tol = 1e-6) {
+  n <- nrow(X)
+  p <- ncol(X)
+  
+  # Initialize beta
+  beta <- rep(0, p)
+  
+  # Define some constants
+  alpha <- 1
+  intercept <- FALSE
+  
+  # Coordinate descent algorithm
+  for (iter in 1:max_iter) {
+    beta_old <- beta
+    
+    # Update each coefficient in turn
+    for (j in 1:p) {
+      X_j <- X[, j]
+      beta_j <- beta[-j]
+      
+      # Compute the partial residual
+      r <- y - X_j * beta[j]
+      
+      # Compute the correlation between the partial residual and the predictor
+      z <- X_j %*% r / n
+      
+      # Update the coefficient using soft-thresholding
+      beta[j] <- soft_threshold(z, lambda * alpha * (1 - tau))
+    }
+    
+    # Check for convergence
+    if (max(abs(beta - beta_old)) < tol) {
+      break
+    }
+  }
+  
+  # Return the estimated coefficients
+  return(beta)
+}
+
+# Define the soft-thresholding function
+soft_threshold <- function(z, lambda) {
+  ifelse(z < -lambda, z + lambda, ifelse(z > lambda, z - lambda, 0))
+}
+```
+
+
+```{r}
+df <- read.csv('insurance.csv')
+df$sex <- as.numeric(as.factor(df$sex))
+df$smoker <- as.numeric(as.factor(df$smoker))
+df$region <- as.numeric(as.factor(df$region))
+X <- scale(as.matrix(df[, -7]))
+y <- scale(as.vector(df[,7]))
+
+# Fit the quantile regression model
+beta <- quantile_reg(X, y, tau = 0.9, lambda = .1)
+
+# Print the estimated coefficients
+print(beta)
+
+# Compare the estimated and real values
+pred <- (X %*% beta)
+temp <- data.frame(
+  pred=pred,
+  real=y
+)
+mean((pred-y)^2)
+
+library(ggplot2)
+ggplot(data = temp, aes(real, pred)) +
+  geom_point(fill="black",colour="black",size=3,shape=21) +
+  #geom_smooth(method="lm",se=TRUE,formula=y ~ splines::bs(x, 5),colour="red")+ #(h)
+  #geom_smooth(method = 'gam',formula=y ~s(x))+   #(g)
+  geom_smooth(method = 'loess',span=0.9,se=TRUE,colour="#00A5FF",fill="#00A5FF",alpha=0.2)+ #(f)
+  scale_y_continuous(breaks = seq(0, 125, 25))+
+  theme(
+    text=element_text(size=15,color="black"),
+    plot.title=element_text(size=15,family="myfont",hjust=.5,color="black"),
+    legend.position="none"
+  )
+```
+
+
+```{r}
+beta_2 <- quantile_reg(X, y, tau = 0.5, lambda = 0.1)
+object_2 <- objective_func(beta_2, X, y, tau = 0.5, lambda = 0.1)
+object_2
+pred_2 <- (X %*% beta_2)
+mean((y-pred_2)^2)
+temp_2 <- data.frame(
+  pred=pred_2,
+  real=y
+)
+ggplot(data = temp_2, aes(real, pred_2)) +
+  geom_point(fill="black",colour="black",size=3,shape=21) +
+  #geom_smooth(method="lm",se=TRUE,formula=y ~ splines::bs(x, 5),colour="red")+ #(h)
+  #geom_smooth(method = 'gam',formula=y ~s(x))+   #(g)
+  geom_smooth(method = 'loess',span=0.5,se=TRUE,colour="#00A5FF",fill="#00A5FF",alpha=0.2)+ #(f)
+  scale_y_continuous(breaks = seq(0, 125, 25))+
+  theme(
+    text=element_text(size=15,color="black"),
+    plot.title=element_text(size=15,family="myfont",hjust=.5,color="black"),
+    legend.position="none"
+  )
+```
+
+```{r}
+beta_3 <- quantile_reg(X, y, tau = 0.1, lambda = 0.1)
+object_3 <- objective_func(beta_3, X, y, tau = 0.1, lambda = 0.1)
+object_3
+pred_3 <- (X %*% beta_3)
+mean((y-pred_3)^2)
+temp_3 <- data.frame(
+  pred=pred_3,
+  real=y
+)
+ggplot(data = temp_3, aes(real, pred_3)) +
+  geom_point(fill="black",colour="black",size=3,shape=21) +
+  #geom_smooth(method="lm",se=TRUE,formula=y ~ splines::bs(x, 5),colour="red")+ #(h)
+  #geom_smooth(method = 'gam',formula=y ~s(x))+   #(g)
+  geom_smooth(method = 'loess',span=0.5,se=TRUE,colour="#00A5FF",fill="#00A5FF",alpha=0.2)+ #(f)
+  scale_y_continuous(breaks = seq(0, 125, 25))+
+  theme(
+    text=element_text(size=15,color="black"),
+    plot.title=element_text(size=15,family="myfont",hjust=.5,color="black"),
+    legend.position="none"
+  )
+```
